@@ -1,0 +1,188 @@
+---
+title: 'Predicting Titanic Survivors'
+author: 'Sam Veverka'
+date: '20 January 2017'
+output:
+  html_document:
+    number_sections: true
+    toc: true
+    fig_width: 6.5
+    fig_height: 4
+    theme: cerulean
+    highlight: pygments
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Introduction
+
+This script attempts to predict which Titanic passengers survived. More importantly for me, it is my first attempt to use RMarkdown to present data. I intend to keep the prediction process simple, so I will perform little manipulation on the data and will use a fairly basic random forest model. The data is from a kaggle competition, so it includes a training and test set, where the training set observations included if the passenger survived and the test set observations do not.
+
+I used Kaggle user Ben Hamner's "Random Forest Benchmark" kernel as a basis for my data cleaning and user Megan Risdal's "Exploring Survival on the Titanic" kernel as a basis for presentation
+
+
+# Load Libraries and Data
+
+```{r, echo = FALSE, message = FALSE}
+setwd("C:\\Users\\Samuel\\Documents\\R\\Excel Practice Sheets\\kaggle") # Set my working directory
+
+# Load packages
+library(ggplot2)
+library(ggthemes)
+library(randomForest) 
+library(dplyr)
+library(fields)
+```
+
+Load the data, which is pre-sorted into training and test data
+
+```{r}
+set.seed(1) #needed for random forest
+train <- read.csv("train.csv", header = TRUE)
+test <- read.csv("test.csv", header = TRUE)
+```
+
+
+
+#Clean and Ready Data for Analysis
+```{r}
+names(train)
+names(test)
+```
+
+We can verify that the sole difference between datasets is the Survivors column absent in the test data.
+
+```{r, eval = FALSE}
+fix(train)
+```
+
+It appears several variables are not helpful or atleast not helpful without manipulation or imputation. The ticket column appears to be nonsense at first sight. The values resemble modern ticket values. A lot of values appear to be missing. Perhaps insight can be gained, but it would likely be similar to insight provided by the Fare column. I will drop Cabin as well, as much data is missing. Finally, I will drop Names. There could definitely be useful information in the Names, as family names are tied to ancestral and cultural background, which, especially in the early 1900s, was tied to socio-economic status. However, quantifying that effect is beyond the scope of this script.
+
+
+The remaining variables appear to be easily related to survival rates.
+
+```{r}
+#Age and Survival
+bplot.xy(train$Survived, train$Age)
+summary(train$Survived) #quite a few NAs
+
+#Fares and Survival
+bplot.xy(train$Survived, train$Fare)
+```
+
+The above plots indicate atleast a relationship between Age and Survived and Fares and Survived.
+
+Below is a for loop which extracts the variables I wish to use. Note that imputation must be used on several of the variables. A value of -1 is assigned to those without an age to replace NAs, and the median fare replaces NAs in the Fare column
+
+```{r}
+extractFeatures <- function(data) {
+  features <- c("Pclass",
+                "Age",
+                "Sex",
+                "Parch",
+                "SibSp",
+                "Fare",
+                "Embarked")
+  fea <- data[,features]
+  fea$Age[is.na(fea$Age)] <- -1
+  fea$Fare[is.na(fea$Fare)] <- median(fea$Fare, na.rm=TRUE)
+  fea$Embarked[fea$Embarked==""] = "S"
+  fea$Sex      <- as.factor(fea$Sex)
+  fea$Embarked <- as.factor(fea$Embarked)
+  return(fea)
+}
+```
+
+Now, I apply the loop to the training and testing data. Note, that I coerce the training data's "Survived" column to a factor. I also, add a "Survived" column to test data.
+
+```{r}
+train1 <-extractFeatures(train)
+test1 <- extractFeatures(test)
+train1$Survived <- as.factor(train$Survived)
+test1$Survived <- test$Survived
+```
+
+
+Below, I assign the levels of the training "Survived" column to the testing 
+"Survived" column so that it can receive prediction values. Also, I use a little trick to make sure that the levels and value types of all columns between the sets are the same. It is not elegant, but it does the job.
+
+```{r}
+levels(test1$Survived) <- levels(train1$Survived)
+
+test1 <- rbind(train1[1, ] , test1)
+test1 <- test1[-1,]
+```
+
+
+#Building the Model
+
+To begin with, I will use randomForest function to create my initial randomForest model. I apply the model to the training data with all 7 variables being utilized and 50 trees, which should be sufficient as there are only 418 observations in the test data I am predicting on to.
+```{r}
+rf <- randomForest(as.factor(train1$Survived) ~., data=train1,  mtry=7, importance =TRUE, ntree = 50)
+pred.rf = predict(rf ,newdata =test1)
+summary(pred.rf)
+```
+
+I would prefer to use a test set where I have the actual survival numbers, so I could calculate errors and use cross-validation to pick the preferred model. Since this data is from a Kaggle competition, I do not. I could cut up the provided training data into two sets, but I would prefer not to when the training data only has double the observations of the testing data.
+
+I will take steps to decided what number of variables I should include. First I run a loop to compare random forests with 1 to 7 variables included. I can not compare errors, but it could still be useful to see how the models vary.
+
+
+```{r}
+class =matrix(NA, 7,2)
+for(i in 1:7){
+  fit=randomForest(Survived~.,data=train1, mtry=i, ntree=50)
+  pred=predict(fit,newdata =test1)
+  class[i,] = summary(pred)
+}
+class
+```
+
+The models vary, but there is no obvious dropoff. Below are the importance statistics for the variables and simple graph of the importance.
+
+```{r}
+importance(rf)
+varImpPlot(rf)
+```
+
+It appears that Sex is easily the most important of the variables, especially according to the mean decrease in accuracy when it is omitted.
+
+Below is a more aesthetically pleasing plot of the variable importance
+
+```{r, echo = FALSE}
+importance <- importance(rf)
+varImportance <- data.frame(Variables = row.names(importance), Importance = importance[,1])
+
+ggplot(varImportance, aes(x = reorder(Variables, Importance), 
+                          y = Importance, fill = Importance)) +
+  geom_bar(stat='identity') + 
+  labs(x = 'Variables') +
+  coord_flip() + 
+  theme_fivethirtyeight()
+```
+
+#Final Model and Prediction
+Since multiple entries are allowed, I decided to enter two models, one random forest with six variables and one with one variable. I exclude "Embarked" from the six variable model as it is by far the least useful variable according to the mean decrease in accuracy and Gini. The one variable model includes only "Sex", as that is by far the most important.
+
+```{r}
+rf <- randomForest(as.factor(train1$Survived) ~., data=train1,  mtry=6, importance =TRUE, ntree = 50)
+pred.rf = predict(rf ,newdata =test1)
+summary(pred.rf)
+
+solution <- data.frame(PassengerID = test$PassengerId, Survived = pred.rf)               
+write.csv(solution, file = "random_forest_submission.csv", row.names=FALSE)
+
+
+
+rf1 <- randomForest(as.factor(train1$Survived) ~., data=train1,  mtry=1, importance =TRUE, ntree = 50)
+pred.rf1 = predict(rf1 ,newdata =test1)
+summary(pred.rf1)
+
+solution1 <- data.frame(PassengerID = test$PassengerId, Survived = pred.rf1)               
+write.csv(solution1, file = "random_forest_2_submission.csv", row.names=FALSE)
+```
+
+The model with only "Sex" as the predictor performed better, with a public score of 0.77033, which puts the model in the top half of models submitted. That's not too bad for such a simple model!
