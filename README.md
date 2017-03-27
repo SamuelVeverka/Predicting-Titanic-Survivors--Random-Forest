@@ -200,7 +200,7 @@ Below is a more aesthetically pleasing plot of the variable importance
 
 ![](titanic_files/figure-html/unnamed-chunk-12-1.png)<!-- -->
 
-#Final Model and Prediction
+## Final Model and Prediction
 Since multiple entries are allowed, I decided to enter two models, one random forest with six variables and one with one variable. I exclude "Embarked" from the six variable model as it is by far the least useful variable according to the mean decrease in accuracy and Gini. The one variable model includes only "Sex", as that is by far the most important.
 
 
