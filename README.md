@@ -1,18 +1,18 @@
 # Predicting Titanic Survivors
 Sam Veverka  
-20 January 2017  
+8 January 2017  
 
 
 
 
-#Introduction
+## Introduction
 
-This script attempts to predict which Titanic passengers survived. More importantly for me, it is my first attempt to use RMarkdown to present data. I intend to keep the prediction process simple, so I will perform little manipulation on the data and will use a fairly basic random forest model. The data is from a kaggle competition, so it includes a training and test set, where the training set observations included if the passenger survived and the test set observations do not.
+This script attempts to predict which Titanic passengers survived. More importantly for me, it is my first attempt to use RMarkdown to present data. I intend to keep the prediction process simple, so I will perform little manipulation on the data and will use a fairly basic random forest model. The data is from a kaggle competition, so it includes a training and test set, where the training set includes if the passenger survived and the test set does not.
 
-I used Kaggle user Ben Hamner's "Random Forest Benchmark" kernel as a basis for my data cleaning and user Megan Risdal's "Exploring Survival on the Titanic" kernel as a basis for presentation
+I used Kaggle user Ben Hamner's "Random Forest Benchmark" kernel as a basis for my data cleaning and user Megan Risdal's "Exploring Survival on the Titanic" kernel as a basis for the last graph presentation.
 
 
-# Load Libraries and Data
+## Load Libraries and Data
 
 
 
@@ -27,7 +27,7 @@ test <- read.csv("test.csv", header = TRUE)
 
 
 
-#Clean and Ready Data for Analysis
+## Clean and Ready Data for Analysis
 
 ```r
 names(train)
@@ -56,7 +56,7 @@ We can verify that the sole difference between datasets is the Survivors column 
 fix(train)
 ```
 
-It appears several variables are not helpful or atleast not helpful without manipulation or imputation. The ticket column appears to be nonsense at first sight. The values resemble modern ticket values. A lot of values appear to be missing. Perhaps insight can be gained, but it would likely be similar to insight provided by the Fare column. I will drop Cabin as well, as much data is missing. Finally, I will drop Names. There could definitely be useful information in the Names, as family names are tied to ancestral and cultural background, which, especially in the early 1900s, was tied to socio-economic status. However, quantifying that effect is beyond the scope of this script.
+It appears several variables are not helpful or atleast not helpful without manipulation or imputation. The ticket column appears to be nonsense at first sight. The ticket values resemble modern randomly generated ticket values. A lot of values appear to be missing. Perhaps insight can be gained from the ticket column, but it would likely be similar to insight provided by the Fare column. I will drop Cabin as well, as much data is missing. Finally, I will drop Names. There could definitely be useful information in the Names, as family names are tied to ancestral and cultural background, which, especially in the early 1900s, was tied to socio-economic status. However, quantifying that effect is beyond the scope of this script.
 
 
 The remaining variables appear to be easily related to survival rates.
@@ -64,26 +64,22 @@ The remaining variables appear to be easily related to survival rates.
 
 ```r
 #Age and Survival
-bplot.xy(train$Survived, train$Age)
+par(mfrow=c(1,2))
+bplot.xy(train$Survived, train$Age, main="Age and Survival", xlab ="Survived = 1, Didn't = 0", ylab = "Age")
+#Fares and Survival
+bplot.xy(train$Survived, train$Fare, main="Fares and Survival", xlab ="Survived = 1, Didn't = 0", ylab = "Fares")
 ```
 
 ![](titanic_files/figure-html/unnamed-chunk-5-1.png)<!-- -->
 
 ```r
-summary(train$Survived) #quite a few NAs
+summary(train$Age) #there appear to be many NAs
 ```
 
 ```
-##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-##  0.0000  0.0000  0.0000  0.3838  1.0000  1.0000
+##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
+##    0.42   20.12   28.00   29.70   38.00   80.00     177
 ```
-
-```r
-#Fares and Survival
-bplot.xy(train$Survived, train$Fare)
-```
-
-![](titanic_files/figure-html/unnamed-chunk-5-2.png)<!-- -->
 
 The above plots indicate atleast a relationship between Age and Survived and Fares and Survived.
 
@@ -132,7 +128,7 @@ test1 <- test1[-1,]
 ```
 
 
-#Building the Model
+## Building the Model
 
 To begin with, I will use randomForest function to create my initial randomForest model. I apply the model to the training data with all 7 variables being utilized and 50 trees, which should be sufficient as there are only 418 observations in the test data I am predicting on to.
 
@@ -240,4 +236,4 @@ solution1 <- data.frame(PassengerID = test$PassengerId, Survived = pred.rf1)
 write.csv(solution1, file = "random_forest_2_submission.csv", row.names=FALSE)
 ```
 
-The model with only "Sex" as the predictor performed better, with a public score of 0.77033, which puts the model in the top half of models submitted. That's not too bad for such a simple model
+The model with "Sex" as the only predictor performed better, with a public score of 0.77033, which puts the model in the top half of models submitted. That's not too bad for such a simple model!
